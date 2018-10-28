@@ -25,23 +25,11 @@
             android:id="@+id/net_status"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginBottom="80dp"
             android:gravity="center"
             android:padding="8dp"
             android:text="device not connected to the internet. please connect the device to internet and restart the app to view the orders"
             android:textAllCaps="true"
             android:textStyle="bold" />
-
-        <!--<TextView
-            android:id="@+id/about"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_gravity="bottom"
-            android:background="@color/colorPrimary"
-            android:gravity="center_vertical|center_horizontal|center"
-            android:padding="@dimen/frag_pad"
-            android:text="@string/about"
-            android:textColor="#fefefe" />-->
 
     </FrameLayout>
 

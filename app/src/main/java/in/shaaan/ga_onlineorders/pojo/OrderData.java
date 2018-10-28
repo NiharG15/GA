@@ -1,5 +1,7 @@
 package in.shaaan.ga_onlineorders.pojo;
 
+import android.support.annotation.Keep;
+
 import com.google.firebase.database.IgnoreExtraProperties;
 
 /**
@@ -7,31 +9,27 @@ import com.google.firebase.database.IgnoreExtraProperties;
  */
 
 @IgnoreExtraProperties
+@Keep
 public class OrderData {
 
     private String custName;
     private String date;
     private String email;
-    private String expProducts;
     private String products;
-    private String product;
-    private String scheme;
+    private String itemid;
     private String quantity;
+    private String expiry;
 
     public OrderData() {
 
     }
 
-    public OrderData(String expProducts, String quantity, String scheme, String product, String custName, String date, String products, String email) {
+    public OrderData(String custName, String email, String date, String products, String expiry) {
         this.email = email;
-        this.quantity = quantity;
         this.custName = custName;
         this.date = date;
         this.products = products;
-        this.expProducts = expProducts;
-        this.product = product;
-        this.scheme = scheme;
-
+        this.expiry = expiry;
     }
 
     public String getCustName() {
@@ -66,28 +64,12 @@ public class OrderData {
         this.products = products;
     }
 
-    public String getExpProducts() {
-        return expProducts;
+    public String getItemId() {
+        return itemid;
     }
 
-    public void setExpProducts(String expProducts) {
-        this.expProducts = expProducts;
-    }
-
-    public String getScheme() {
-        return scheme;
-    }
-
-    public void setScheme(String scheme) {
-        this.scheme = scheme;
-    }
-
-    public String getProduct() {
-        return product;
-    }
-
-    public void setProduct(String product) {
-        this.product = product;
+    public void setItemId(String itemid) {
+        this.itemid = itemid;
     }
 
     public String getQuantity() {
@@ -96,5 +78,13 @@ public class OrderData {
 
     public void setQuantity(String quantity) {
         this.quantity = quantity;
+    }
+
+    public String getExpiry() {
+        return expiry;
+    }
+
+    public void setExpiry(String expiry) {
+        this.expiry = expiry;
     }
 }

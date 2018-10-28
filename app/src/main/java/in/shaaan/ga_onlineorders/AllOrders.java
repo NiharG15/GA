@@ -6,7 +6,9 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -23,12 +25,25 @@ import android.widget.Toast;
 import com.firebase.ui.auth.AuthUI;
 import com.firebase.ui.database.FirebaseRecyclerAdapter;
 import com.firebase.ui.database.FirebaseRecyclerOptions;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.Query;
+import com.google.firebase.storage.FileDownloadTask;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageMetadata;
+import com.google.firebase.storage.StorageReference;
 
-import butterknife.Bind;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.StringTokenizer;
+
+import butterknife.BindView;
 import butterknife.ButterKnife;
 import in.shaaan.ga_onlineorders.pojo.OrderData;
 import in.shaaan.ga_onlineorders.pojo.PostViewHolder;
@@ -36,20 +51,18 @@ import in.shaaan.ga_onlineorders.pojo.PostViewHolder;
 public class AllOrders extends AppCompatActivity {
 
     private static final String TAG = "ViewActivity";
-    @Bind(R.id.fab)
+    @BindView(R.id.fab)
     FloatingActionButton floatingActionButton;
-    @Bind(R.id.net_status)
+    @BindView(R.id.net_status)
     TextView netStatus;
-    @Bind(R.id.recycler)
+    @BindView(R.id.recycler)
     RecyclerView recyclerView;
+    @BindView(R.id.coordinatorLayout)
+    CoordinatorLayout coordinatorLayout;
 
     private FirebaseAuth.AuthStateListener mAuthListener;
     private FirebaseAuth mAuth;
-
-//    private DatabaseReference databaseReference1;
-//    private RecyclerView recyclerView;
-//    private FirebaseRecyclerAdapter<OrderData, PostViewHolder> mAdapter;
-//    private LinearLayoutManager mManager;
+    private FirebaseRecyclerAdapter mAdapter;
 
 
     @Override
@@ -57,7 +70,7 @@ public class AllOrders extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_all_orders);
         ButterKnife.bind(this);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         netStatus.setVisibility(View.GONE);
 
@@ -68,8 +81,10 @@ public class AllOrders extends AppCompatActivity {
                 FirebaseUser user = firebaseAuth.getCurrentUser();
                 if (user != null) {
                     // User is signed in
-                    Log.d(TAG, "onAuthStateChanged:signed_in:" + user.getUid());
-//                    Toast.makeText(AllOrders.this, "Logged in successfully", Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "onAuthStateChanged:signed_in:" + user.getUid() + user.getEmail());
+                    syncCustList();
+                    syncDrugList();
+                    syncSalesmanList();
                 } else {
                     // User is signed out
                     Log.d(TAG, "onAuthStateChanged:signed_out");
@@ -86,16 +101,26 @@ public class AllOrders extends AppCompatActivity {
         mManager.setReverseLayout(true);
         recyclerView.setLayoutManager(mManager);
 
+        String[] strings = getResources().getStringArray(R.array.salesmen);
+        List<String> salesmen = Arrays.asList(strings);
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        String s = user.getEmail();
+        String s1 = salesmen.toString();
+        if (s1.contains(s)) {
+            FirebaseAnalytics firebaseAnalytics = FirebaseAnalytics.getInstance(this);
+            firebaseAnalytics.setUserProperty("salesman", "isSalesman");
+        }
 
-        // Initialize Database
-//        databaseReference1 = GaFirebase.isCalled().getReference().child("salesman").child(getUid());
-//            databaseReference1 = FirebaseDatabase.getInstance().getReference().child("salesman").child(getUid());
-        Query query = GaFirebase.isCalled().getReference().child("salesman").child(getUid());
+        String email = FirebaseAuth.getInstance().getCurrentUser().getEmail();
+        StringTokenizer stringTokenizer = new StringTokenizer(email, "@");
+        String salesmanP = stringTokenizer.nextToken().trim();
+
+        Query query = GaFirebase.isCalled().getReference().child("").child("salesman").child(salesmanP);
         FirebaseRecyclerOptions<OrderData> options = new FirebaseRecyclerOptions.Builder<OrderData>()
                 .setQuery(query, OrderData.class)
                 .build();
 
-        FirebaseRecyclerAdapter<OrderData, PostViewHolder> mAdapter = new FirebaseRecyclerAdapter<OrderData, PostViewHolder>(options) {
+        mAdapter = new FirebaseRecyclerAdapter<OrderData, PostViewHolder>(options) {
             @Override
             public PostViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
                 View v = LayoutInflater.from(parent.getContext())
@@ -122,7 +147,7 @@ public class AllOrders extends AppCompatActivity {
                         intent.putExtra("date", orderData.getDate());
                         intent.putExtra("orderURL", orderRef);
                         intent.putExtra("by", orderData.getEmail());
-                        intent.putExtra("exp", orderData.getExpProducts());
+                        intent.putExtra("expiry", orderData.getExpiry());
                         startActivity(intent);
                     }
                 });
@@ -150,10 +175,203 @@ public class AllOrders extends AppCompatActivity {
         return netInfo != null && netInfo.isConnectedOrConnecting();
     }
 
+    public void syncCustList() {
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        final StorageReference custRef = storage.getReference().child("custList.txt");
+        custRef.getMetadata().addOnSuccessListener(new OnSuccessListener<StorageMetadata>() {
+            @Override
+            public void onSuccess(StorageMetadata storageMetadata) {
+
+                File custFile = new File(getFilesDir().getPath(), "/custList.txt");
+                if (!custFile.canRead()) {
+                    try {
+                        final File file = File.createTempFile("text", ".txt");
+                        custRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                            @Override
+                            public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                Log.d("FileManager", file.getAbsolutePath());
+                                File from = file.getAbsoluteFile();
+                                File to = new File(getFilesDir(), "custList.txt");
+                                from.renameTo(to);
+                                Snackbar.make(coordinatorLayout, "Customer list not found. Downloading", Snackbar.LENGTH_LONG).show();
+                            }
+                        });
+                    } catch (IOException e) {
+                        Log.e(TAG, "IOexception when writing file");
+                        e.printStackTrace();
+                    }
+                } else {
+                    try {
+                        String custListString = custFile.toString();
+                        FileInputStream fileInputStream = new FileInputStream(custListString);
+                        String checksum = MD5.md5(fileInputStream);
+                        if (!checksum.equalsIgnoreCase(storageMetadata.getMd5Hash())) {
+                            try {
+                                final File file = File.createTempFile("text", ".txt");
+                                custRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                                    @Override
+                                    public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                        Log.d("FileManager", file.getAbsolutePath());
+                                        File from = file.getAbsoluteFile();
+                                        File to = new File(getFilesDir(), "custList.txt");
+                                        from.renameTo(to);
+                                        Snackbar.make(coordinatorLayout, "Customer list outdated. Downloading..", Snackbar.LENGTH_LONG).show();
+                                    }
+                                });
+                            } catch (IOException e) {
+                                Log.e(TAG, "IOexception when writing file");
+                                e.printStackTrace();
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e("OOPS", "Fatal...");
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.w("Metadata", "Failed to get metadata of custList");
+                Snackbar.make(coordinatorLayout, "Update failed. No internet connection?", Snackbar.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    public void syncDrugList() {
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        final StorageReference drugRef = storage.getReference().child("drugList.txt");
+        drugRef.getMetadata().addOnSuccessListener(new OnSuccessListener<StorageMetadata>() {
+            @Override
+            public void onSuccess(StorageMetadata storageMetadata) {
+
+                File drugFile = new File(getFilesDir().getPath() + "/drugList.txt");
+                if (!drugFile.canRead()) {
+                    try {
+                        final File file = File.createTempFile("text", ".txt");
+                        drugRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                            @Override
+                            public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                Log.d("FileManager", file.getAbsolutePath());
+                                File from = file.getAbsoluteFile();
+                                File to = new File(getFilesDir(), "drugList.txt");
+                                from.renameTo(to);
+                                Snackbar.make(coordinatorLayout, "Drug list not found. Downloading", Snackbar.LENGTH_LONG).show();
+                            }
+                        });
+                    } catch (IOException e) {
+                        Log.e(TAG, "IOexception when writing file");
+                        e.printStackTrace();
+                    }
+                } else {
+                    try {
+                        try {
+                            String drugListString = drugFile.toString();
+                            FileInputStream fileInputStream = new FileInputStream(drugListString);
+                            String checksum = MD5.md5(fileInputStream);
+                            if (!checksum.equalsIgnoreCase(storageMetadata.getMd5Hash())) {
+                                try {
+                                    final File file = File.createTempFile("text", ".txt");
+                                    drugRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                                        @Override
+                                        public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                            Log.d("FileManager", file.getAbsolutePath());
+                                            File from = file.getAbsoluteFile();
+                                            File to = new File(getFilesDir(), "drugList.txt");
+                                            from.renameTo(to);
+                                            Snackbar.make(coordinatorLayout, "Drug list outdated. Downloading..", Snackbar.LENGTH_LONG).show();
+                                        }
+                                    });
+                                } catch (IOException e) {
+                                    Log.e(TAG, "IOexception when writing file");
+                                    e.printStackTrace();
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e("OOPS", "Fatal...");
+                            e.printStackTrace();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.d("Metadata", "Failed to get metadata");
+//                Snackbar.make(coordinatorLayout, "Update failed. No internet connection?", Snackbar.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    public void syncSalesmanList() {
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        final StorageReference salesmanRef = storage.getReference().child("salesman.txt");
+        salesmanRef.getMetadata().addOnSuccessListener(new OnSuccessListener<StorageMetadata>() {
+            @Override
+            public void onSuccess(StorageMetadata storageMetadata) {
+
+                File salesmanFile = new File(getFilesDir().getPath(), "/salesman.txt");
+                if (!salesmanFile.canRead()) {
+                    try {
+                        final File file = File.createTempFile("text", ".txt");
+                        salesmanRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                            @Override
+                            public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                Log.d("FileManager", file.getAbsolutePath());
+                                File from = file.getAbsoluteFile();
+                                File to = new File(getFilesDir(), "salesman.txt");
+                                from.renameTo(to);
+                                Snackbar.make(coordinatorLayout, "Saleman list not found. Downloading", Snackbar.LENGTH_LONG).show();
+                            }
+                        });
+                    } catch (IOException e) {
+                        Log.e(TAG, "IOexception when writing file");
+                        e.printStackTrace();
+                    }
+                } else {
+                    try {
+                        String salesmanListString = salesmanFile.toString();
+                        FileInputStream fileInputStream = new FileInputStream(salesmanListString);
+                        String checksum = MD5.md5(fileInputStream);
+                        if (!checksum.equalsIgnoreCase(storageMetadata.getMd5Hash())) {
+                            try {
+                                final File file = File.createTempFile("text", ".txt");
+                                salesmanRef.getFile(file).addOnSuccessListener(new OnSuccessListener<FileDownloadTask.TaskSnapshot>() {
+                                    @Override
+                                    public void onSuccess(FileDownloadTask.TaskSnapshot taskSnapshot) {
+                                        Log.d("FileManager", file.getAbsolutePath());
+                                        File from = file.getAbsoluteFile();
+                                        File to = new File(getFilesDir(), "salesman.txt");
+                                        from.renameTo(to);
+                                        Snackbar.make(coordinatorLayout, "Salesman list outdated. Downloading..", Snackbar.LENGTH_LONG).show();
+                                    }
+                                });
+                            } catch (IOException e) {
+                                Log.e(TAG, "IOexception when writing file");
+                                e.printStackTrace();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.d("Metadata", "Failed to get salesman metadata");
+                Snackbar.make(coordinatorLayout, "Update failed. No internet connection?", Snackbar.LENGTH_LONG).show();
+            }
+        });
+    }
+
     @Override
     public void onStart() {
         super.onStart();
         mAuth.addAuthStateListener(mAuthListener);
+        mAdapter.startListening();
     }
 
     @Override
@@ -162,6 +380,7 @@ public class AllOrders extends AppCompatActivity {
         if (mAuthListener != null) {
             mAuth.removeAuthStateListener(mAuthListener);
         }
+        mAdapter.stopListening();
     }
 
 
@@ -189,6 +408,8 @@ public class AllOrders extends AppCompatActivity {
 //            return true;
             AuthUI.getInstance()
                     .signOut(this);
+            Intent intent = new Intent(this, LauncherActivity.class);
+            startActivity(intent);
             finish();
         }
         if (id == R.id.action_about) {

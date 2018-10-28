@@ -23,3 +23,22 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+-ignorewarnings
+
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends java.lang.Exception
+
+###---------------Begin: proguard configuration for ButterKnife  ----------
+# For Butterknife:
+-keep class butterknife.** { *; }
+-dontwarn butterknife.internal.**
+
+# Version 7
+-keep class **$$ViewBinder { *; }
+# Version 8
+-keep class **_ViewBinding { *; }
+
+-keepclasseswithmembernames class * { @butterknife.* <fields>; }
+-keepclasseswithmembernames class * { @butterknife.* <methods>; }
+###---------------End: proguard configuration for ButterKnife  ----------

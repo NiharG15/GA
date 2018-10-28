@@ -98,6 +98,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.7"
                         android:padding="@dimen/activity_horizontal_margin"
+                        android:textAllCaps="true"
                         android:textSize="14sp" />
                 </LinearLayout>
 
@@ -134,12 +135,12 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.3"
                         android:padding="@dimen/activity_horizontal_margin"
-                        android:text="Products Against Expiry:"
+                        android:text="Expiry:"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
-                        android:id="@+id/vieworder_exp"
+                        android:id="@+id/vieworder_expiry"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="0.7"

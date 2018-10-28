@@ -13,23 +13,23 @@ import com.google.firebase.database.FirebaseDatabase;
 
 import java.util.StringTokenizer;
 
-import butterknife.Bind;
+import butterknife.BindView;
 import butterknife.ButterKnife;
 
 public class ViewOrder extends AppCompatActivity {
 
-    @Bind(R.id.vieworder_custName)
+    @BindView(R.id.vieworder_custName)
     TextView mCustName;
-    @Bind(R.id.vieworder_date)
+    @BindView(R.id.vieworder_date)
     TextView mDate;
-    @Bind(R.id.vieworder_order)
+    @BindView(R.id.vieworder_order)
     TextView mOrder;
-    @Bind(R.id.vieworder_exp)
-    TextView mExpiry;
-    @Bind(R.id.vieworder_salesman)
+    @BindView(R.id.vieworder_salesman)
     TextView mSalesman;
-    @Bind(R.id.delete_order)
+    @BindView(R.id.delete_order)
     Button deleteButton;
+    @BindView(R.id.vieworder_expiry)
+    TextView expiryAdj;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,8 +42,8 @@ public class ViewOrder extends AppCompatActivity {
         String order = intent.getStringExtra("order");
         String date = intent.getStringExtra("date");
         String by = intent.getStringExtra("by");
+        String expiry = intent.getStringExtra("expiry");
         final String orderURL = intent.getStringExtra("orderURL");
-        String exp = intent.getStringExtra("exp");
 
         StringTokenizer stringTokenizer = new StringTokenizer(by, "@");
         String salesman = stringTokenizer.nextToken().trim();
@@ -53,14 +53,9 @@ public class ViewOrder extends AppCompatActivity {
             mDate.setText(date);
             mOrder.setText(order);
             mSalesman.setText(salesman);
-        } /*else {
-            Toast.makeText(this, "Its null", Toast.LENGTH_SHORT).show();
-        }*/
-
-        if (exp != null) {
-            mExpiry.setText(exp);
-        } else {
-            mExpiry.setText("Not Available");
+        }
+        if (expiry != null) {
+            expiryAdj.setText("Expiry Adjusted in this invoice");
         }
 
         deleteButton.setOnClickListener(new View.OnClickListener() {
